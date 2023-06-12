@@ -7,6 +7,9 @@ CREATE TABLE Country_Code
  continent VARCHAR(50) NOT NULL
 );
 
+COPY Country_Code 
+FROM 'D:\Portfolio\country_code.csv' with csv header;
+
 --Import country_code.csv via interface
 
 --Create table Covid_Vaccinations
@@ -107,22 +110,29 @@ CREATE TABLE covid_deaths
 COPY covid_deaths 
 FROM 'D:\Portfolio\Covid_Deaths.csv' with csv header;
 
-SELECT *
-FROM covid_deaths
-ORDER BY 3,4;
+--Add foreign key
 
--- SELECT *
--- FROM COVID_VACCINATIONS
--- ORDER BY 3,4;
+ALTER TABLE covid_deaths
+ADD CONSTRAINT fk
+FOREIGN KEY (iso_code)
+REFERENCES country_code(iso_code);
 
+
+
+--Answer the following questions:
+-- 1. *How many total cases and deaths were recorded in the world?*
+-- 2. *How many total cases and deaths were recorded in the Philippines and what were the death and infection rates?*
+-- 3. *What are the top 10 countries with the highest infection count?*
+-- 4. *What are the top 10 countries with the highest death count?*
+-- 5. *What continent recorded the highest death count and infection count?*
 --Select Data we are going to be using
 
 SELECT Location, date, total_cases, new_cases, total_deaths, population
 FROM covid_deaths
+WHERE total_cases IS NOT NULL AND total_deaths IS NOT NULL
 ORDER BY 1,2;
 
 -- Look at total cases vs total deaths of Philippines (this is more relevant to me)
--- This shows likelihood of dying if you contract covid
 
 SELECT Location, date, total_cases, total_deaths, (total_deaths/total_cases)*100  AS Death_Percentage
 FROM covid_deaths
@@ -146,25 +156,43 @@ WHERE total_cases IS NOT NULL
 GROUP BY Location, population
 ORDER BY Infection_Percentage DESC;
 
---Showing Countries with highest death count per population
+--Showing Countries with highest death rate/ infection rate per population
+-- What are the top 10 countries with the highest infection count?
 
-SELECT Location, continent, MAX(Total_deaths) AS TotalDeathCount
+SELECT Location, SUM(new_deaths) AS TotalDeathCount, SUM(new_cases) AS TotalInfectionCount, (SUM(new_cases)/MAX(population))*100 AS InfectionRate, (SUM(new_deaths)/MAX(population))*100 AS DeathRate 
 FROM covid_deaths
 WHERE total_deaths IS NOT NULL
-GROUP BY Location, continent
-ORDER BY TotalDeathCount DESC;
+GROUP BY Location
+ORDER BY TotalInfectionCount DESC
+LIMIT 10;
 
---Showing Continent with highest death count per population
+-- What are the top 10 countries with the highest death count?
 
-SELECT continent, MAX(Total_deaths) AS TotalDeathCount
+SELECT Location, SUM(new_deaths) AS TotalDeathCount, SUM(new_cases) AS TotalInfectionCount, (SUM(new_cases)/MAX(population))*100 AS InfectionRate, (SUM(new_deaths)/MAX(population))*100 AS DeathRate 
+FROM covid_deaths
+WHERE total_deaths IS NOT NULL
+GROUP BY Location
+ORDER BY TotalDeathCount DESC
+LIMIT 10;
+
+--What continent recorded the highest death count and infection count?
+--Showing Continent with highest death count and infection count per population
+
+SELECT continent, SUM(new_deaths) AS TotalDeathCount, SUM(new_Cases) AS TotalInfectionCount
 FROM covid_deaths
 WHERE total_deaths IS NOT NULL
 GROUP BY continent
 ORDER BY TotalDeathCount DESC;
 
+SELECT continent, SUM(new_deaths) AS TotalDeathCount, SUM(new_Cases) AS TotalInfectionCount
+FROM covid_deaths
+WHERE total_deaths IS NOT NULL
+GROUP BY continent
+ORDER BY TotalInfectionCount DESC;
+
 --Showing growing global number count of cases for each day including percentage of global infection rate
 
-SELECT date, SUM(total_cases) AS TotalGlobalCases, (SUM(total_cases)/SUM(population))*100  AS GlobalInfectionPercentage
+SELECT date, SUM(new_cases) AS TotalGlobalCases, (SUM(new_cases)/MAX(population))*100  AS GlobalInfectionPercentage
 FROM covid_deaths
 WHERE total_cases IS NOT NULL
 GROUP BY date
@@ -172,18 +200,29 @@ ORDER BY 1,2;
 
 --Showing growing Philippine number count of cases for each day
 
-SELECT date, Location, SUM(total_cases) AS TotalCases, (SUM(total_cases)/SUM(population))*100  AS LocalInfectionPercentage
+SELECT date, Location, MAX(total_cases) AS TotalCases, (MAX(total_cases)/MAX(population))*100  AS LocalInfectionPercentage
 FROM covid_deaths
 WHERE total_cases IS NOT NULL
 AND location = 'Philippines'
 GROUP BY date, Location
 ORDER BY 1,2,3 ASC;
 
---Showing aggregated global deaths and Death Percentage per population
+--Showing aggregated global deaths, Cases and Death Percentage per population
+-- How many total cases and deaths were recorded in the world?
 
-SELECT SUM(total_deaths) AS TotalDeathCount, (SUM(total_cases)/SUM(population))*100  AS GlobalDeathPercentage
+SELECT SUM(new_deaths) AS TotalDeathCount, (SUM(new_deaths)/MAX(population))*100  AS GlobalDeathPercentage, SUM(new_cases) AS TotalCases, (SUM(new_cases)/MAX(population))*100  AS GlobalInfectionRate
 FROM covid_deaths
 WHERE total_deaths IS NOT NULL
+ORDER BY 1,2;
+
+--Showing aggregated global deaths, Cases and Death Percentage per population of the Philippines
+-- How many total cases and deaths were recorded in the Philippines and what were the death and infection rates?
+
+SELECT Location, MAX(total_deaths) AS TotalDeathCount, MAX(total_cases) AS TotalCases, (MAX(total_deaths)/MAX(population))*100  AS DeathRate, (MAX(total_cases)/MAX(population))*100  AS InfectionRate
+FROM covid_deaths
+WHERE total_deaths IS NOT NULL
+AND location = 'Philippines'
+GROUP BY Location
 ORDER BY 1,2;
 
 --Looking at Total Population vs Vaccinations using CTE
@@ -208,3 +247,13 @@ SELECT SUM(total_deaths) AS TotalDeathCount, (SUM(total_cases)/SUM(population))*
 FROM covid_deaths
 WHERE total_deaths IS NOT NULL
 ORDER BY 1,2;
+
+
+--Total Vaccination Rate of the Philippines, using Join to get population from other table
+SELECT dea.location, MAX(population), SUM(new_vaccinations) AS TotalVaccineCount, (MAX(population)/SUM(new_vaccinations))*100 AS TotalVaccinationRate
+FROM covid_vaccinations AS vac
+JOIN covid_deaths AS dea
+ON dea.location = vac.location
+WHERE dea.location = 'Philippines'
+GROUP BY dea.location, population;
+
